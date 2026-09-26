@@ -74,6 +74,29 @@ if equity_history:
 else:
     st.info("No data available")
 
+# Sidebar controls
+st.sidebar.markdown("---")
+st.sidebar.subheader("⚙️ Database Controls")
+if st.sidebar.button("🗑️ Reset All History & Trades", type="secondary"):
+    if DB_PATH.exists():
+        conn = sqlite3.connect(str(DB_PATH))
+        conn.execute("DELETE FROM trades")
+        conn.execute("DELETE FROM signals")
+        conn.execute("DELETE FROM equity_snapshots")
+        conn.execute("DELETE FROM agent_state")
+        # Insert fresh baseline snapshot with current initial capital
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        conn.execute(
+            "INSERT INTO equity_snapshots (timestamp, total_equity, cash, unrealized_pnl, realized_pnl, positions_json) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (now, initial_capital, initial_capital, 0.0, 0.0, "[]")
+        )
+        conn.commit()
+        conn.close()
+        st.sidebar.success(f"History reset to ${initial_capital:,.2f} baseline!")
+        st.rerun()
+
 # Auto-refresh
 st.markdown("---")
 refresh = st.checkbox("🔄 Auto-refresh (every 10 seconds)", value=False)

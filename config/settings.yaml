@@ -1,6 +1,6 @@
 general:
   mode: paper                # paper | live
-  initial_capital: 100000.0
+  initial_capital: 200.0
   base_currency: USDT
   log_level: INFO
   data_dir: data
