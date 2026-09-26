@@ -36,7 +36,7 @@ class VirtualAccount:
 
     @property
     def equity(self) -> float:
-        return self.cash + self.unrealized_pnl
+        return self.allocated_capital + self.realized_pnl + self.unrealized_pnl
 
     def update_price(self, symbol: str, price: float) -> None:
         """Update current price for unrealized P&L calculation."""
@@ -52,9 +52,10 @@ class VirtualAccount:
         current_equity = self.equity
         if current_equity > self.peak_equity:
             self.peak_equity = current_equity
-        drawdown = (self.peak_equity - current_equity) / self.peak_equity * 100
-        if drawdown > self.max_drawdown:
-            self.max_drawdown = drawdown
+        if self.peak_equity > 0:
+            drawdown = (self.peak_equity - current_equity) / self.peak_equity * 100
+            if drawdown > self.max_drawdown:
+                self.max_drawdown = drawdown
 
     def open_position(self, fill: Fill) -> None:
         """Open a new position from a fill."""
@@ -66,8 +67,8 @@ class VirtualAccount:
             entry_price=fill.price,
             current_price=fill.price,
         )
-        cost = fill.price * fill.quantity + fill.commission
-        self.cash -= cost
+        self.cash -= fill.commission
+        self.realized_pnl -= fill.commission
         self.total_trades += 1
 
     def close_position(self, fill: Fill) -> float:
@@ -83,7 +84,7 @@ class VirtualAccount:
 
         pnl -= fill.commission
         self.realized_pnl += pnl
-        self.cash += fill.price * fill.quantity - fill.commission
+        self.cash += pnl
 
         if pnl > 0:
             self.winning_trades += 1
@@ -151,15 +152,16 @@ class PortfolioManager:
 
         if signal.stop_loss and signal.stop_loss > 0:
             risk_per_unit = abs(price - signal.stop_loss)
-            if risk_per_unit <= 0:
-                risk_per_unit = price * 0.02  # Fallback: 2% of price
+            min_stop_distance = price * 0.005  # At least 0.5% distance
+            if risk_per_unit < min_stop_distance:
+                risk_per_unit = min_stop_distance
             quantity = risk_amount / risk_per_unit
         else:
-            # Fallback: risk 2% of price as stop distance
             quantity = risk_amount / (price * 0.02)
 
-        # Cap quantity so total cost doesn't exceed available cash
-        max_quantity = (account.cash * 0.95) / price  # Keep 5% cash buffer
+        # Cap max trade notional value to 25% of agent's equity
+        max_notional = account.equity * 0.25
+        max_quantity = max_notional / price
         quantity = min(quantity, max_quantity)
 
         if quantity <= 0:
@@ -197,16 +199,18 @@ class PortfolioManager:
         all_positions = []
         total_unrealized = 0.0
         total_realized = 0.0
+        total_equity = 0.0
         total_cash = 0.0
 
         for account in self.accounts.values():
             all_positions.extend(account.positions.values())
             total_unrealized += account.unrealized_pnl
             total_realized += account.realized_pnl
+            total_equity += account.equity
             total_cash += account.cash
 
         return PortfolioSnapshot(
-            total_equity=total_cash + total_unrealized,
+            total_equity=total_equity,
             cash=total_cash,
             unrealized_pnl=total_unrealized,
             realized_pnl=total_realized,
