@@ -1,0 +1,94 @@
+general:
+  mode: paper                # paper | live
+  initial_capital: 100000.0
+  base_currency: USDT
+  log_level: INFO
+  data_dir: data
+  db_path: data/trading_system.db
+
+symbols:
+  - BTC/USDT
+  - ETH/USDT
+  - SOL/USDT
+  - BNB/USDT
+
+exchange:
+  name: binance
+  sandbox: true
+  api_key: ""                # Leave empty for public data only
+  api_secret: ""
+  rate_limit_per_min: 1100
+  timeout_ms: 30000
+
+data_feed:
+  timeframe: 1h             # Candle interval
+  warmup_bars: 200           # How many historical bars to load on startup
+
+strategies:
+  ma_crossover:
+    enabled: true
+    capital_pct: 0.167
+    fast_period: 9
+    slow_period: 21
+    atr_period: 14
+    atr_stop_multiplier: 2.0
+
+  rsi_divergence:
+    enabled: true
+    capital_pct: 0.167
+    rsi_period: 14
+    rsi_oversold: 35
+    rsi_overbought: 65
+    pivot_lookback: 5
+    reward_risk_ratio: 2.0
+
+  bollinger_mean_reversion:
+    enabled: true
+    capital_pct: 0.167
+    bb_period: 20
+    bb_std: 2.0
+    rsi_period: 14
+    rsi_oversold: 30
+    rsi_overbought: 70
+    atr_period: 14
+    atr_stop_multiplier: 1.5
+
+  momentum_breakout:
+    enabled: true
+    capital_pct: 0.167
+    entry_period: 20
+    exit_period: 10
+    atr_period: 20
+    risk_per_trade_pct: 1.0
+
+  macd_squeeze:
+    enabled: true
+    capital_pct: 0.167
+    bb_period: 20
+    bb_std: 2.0
+    kc_period: 20
+    kc_atr_multiplier: 1.5
+    macd_fast: 12
+    macd_slow: 26
+    macd_signal: 9
+
+  pairs_trading:
+    enabled: true
+    capital_pct: 0.167
+    pair_a: BTC/USDT
+    pair_b: ETH/USDT
+    lookback_period: 90
+    entry_z: 2.0
+    exit_z: 0.0
+    stop_z: 3.5
+
+risk:
+  max_daily_drawdown_pct: 3.0
+  max_total_drawdown_pct: 8.0
+  max_position_concentration_pct: 25.0
+  max_risk_per_trade_pct: 1.0
+  max_open_positions: 12
+
+dashboard:
+  refresh_interval_sec: 5
+  port: 8501
