@@ -125,15 +125,48 @@ class Supervisor:
                 self.settings.data_feed.timeframe,
                 self.settings.data_feed.warmup_bars,
             )
-            for bar in bars:
+            if not bars:
+                continue
+
+            # Feed all but the last bar for history warmup
+            for bar in bars[:-1]:
                 self.portfolio.update_price(bar.symbol, bar.close)
                 for agent in self.agents.values():
                     if bar.symbol in agent.symbols:
                         await agent.on_bar(bar)
 
-        # Clear any signals generated during warmup (historical signals are stale)
-        while not self._signal_queue.empty():
-            self._signal_queue.get_nowait()
+            # Drain older historical signals
+            while not self._signal_queue.empty():
+                self._signal_queue.get_nowait()
+
+            # Now feed the latest closed bar so current setups can trigger
+            latest_bar = bars[-1]
+            self.portfolio.update_price(latest_bar.symbol, latest_bar.close)
+            for agent in self.agents.values():
+                if latest_bar.symbol in agent.symbols:
+                    await agent.on_bar(latest_bar)
+
+        # Record initial snapshot to DB immediately so dashboard has baseline
+        snapshot = self.portfolio.get_snapshot()
+        await self.db.record_equity_snapshot(snapshot)
+        for agent_id, agent in self.agents.items():
+            perf = self.portfolio.get_agent_performance(
+                agent_id, agent.strategy_name, agent.status
+            )
+            await self.db.save_agent_state(
+                agent_id=agent_id,
+                strategy_name=agent.strategy_name,
+                status=agent.status.value,
+                allocated_capital=perf.allocated_capital,
+                current_equity=perf.current_equity,
+                realized_pnl=perf.realized_pnl,
+                unrealized_pnl=perf.unrealized_pnl,
+                total_trades=perf.total_trades,
+                winning_trades=perf.winning_trades,
+                losing_trades=perf.losing_trades,
+                max_drawdown=perf.max_drawdown,
+                peak_equity=self.portfolio.accounts[agent_id].peak_equity,
+            )
 
         logger.info("warmup_complete")
 

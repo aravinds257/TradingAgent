@@ -56,6 +56,27 @@ class ExecutionEngine:
             logger.error("exchange_not_connected")
             return None
 
+        # Local simulated paper broker mode when no API keys are provided
+        if not self.config.api_key:
+            price = order.price or await self.fetch_ticker_price(order.symbol) or 0.0
+            if price <= 0:
+                logger.warning("simulated_order_failed_no_price", symbol=order.symbol)
+                return None
+            fee_cost = round(price * order.quantity * 0.00075, 4)  # 0.075% standard taker fee
+            fill = Fill(
+                order_id=order.order_id,
+                agent_id=order.agent_id,
+                symbol=order.symbol,
+                side=order.side,
+                quantity=order.quantity,
+                price=price,
+                commission=fee_cost,
+            )
+            order.status = OrderStatus.FILLED
+            logger.info("paper_order_simulated_fill", fill_id=fill.fill_id,
+                        price=price, qty=order.quantity, fee=fee_cost)
+            return fill
+
         async with self._limiter:
             try:
                 order_type = "limit" if order.price else "market"

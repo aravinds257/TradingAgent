@@ -21,7 +21,7 @@ exchange:
   timeout_ms: 30000
 
 data_feed:
-  timeframe: 1h             # Candle interval
+  timeframe: 1m             # Candle interval (1m for active trading and live updates)
   warmup_bars: 200           # How many historical bars to load on startup
 
 strategies:
