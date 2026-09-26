@@ -9,17 +9,20 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from src.core.config import load_settings
 from dashboard.components.charts import equity_curve_chart
 from dashboard.components.metrics import compute_portfolio_kpis, compute_win_rate
 
 st.set_page_config(page_title="Portfolio Overview", page_icon="📈", layout="wide")
 st.title("📈 Portfolio Overview")
 
+settings = load_settings()
+initial_capital = settings.general.initial_capital
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "trading_system.db"
 
 def load_data():
     if not DB_PATH.exists():
-        return [], [], 100000.0
+        return [], []
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
 
@@ -32,9 +35,9 @@ def load_data():
     ).fetchall()]
 
     conn.close()
-    return equity, trades, 100000.0
+    return equity, trades
 
-equity_history, all_trades, initial_capital = load_data()
+equity_history, all_trades = load_data()
 
 # KPI Cards
 kpis = compute_portfolio_kpis(equity_history, initial_capital)

@@ -7,15 +7,16 @@ import json
 from pathlib import Path
 import sys
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from src.core.config import load_settings
 from dashboard.components.charts import drawdown_gauge
 
 st.set_page_config(page_title="Risk Monitor", page_icon="🛡️", layout="wide")
 st.title("🛡️ Risk Monitor")
 
+settings = load_settings()
+INITIAL_CAPITAL = settings.general.initial_capital
+MAX_DD_LIMIT = settings.risk.max_total_drawdown_pct
 DB_PATH = Path(__file__).parent.parent.parent / "data" / "trading_system.db"
-INITIAL_CAPITAL = 100000.0
-MAX_DD_LIMIT = 8.0  # From settings
 
 def load_risk_data():
     if not DB_PATH.exists():
