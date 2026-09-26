@@ -22,9 +22,11 @@ def compute_portfolio_kpis(equity_history: list[dict],
     df = pd.DataFrame(equity_history)
     df = df.sort_values("timestamp")
 
-    current_equity = df["total_equity"].iloc[-1]
-    total_return_usd = current_equity - initial_capital
+    realized = df["realized_pnl"].iloc[-1] if "realized_pnl" in df.columns else 0.0
+    unrealized = df["unrealized_pnl"].iloc[-1] if "unrealized_pnl" in df.columns else 0.0
+    total_return_usd = realized + unrealized
     total_return_pct = (total_return_usd / initial_capital) * 100
+    current_equity = initial_capital + total_return_usd
 
     # Max drawdown
     peak = df["total_equity"].cummax()
@@ -41,15 +43,13 @@ def compute_portfolio_kpis(equity_history: list[dict],
     else:
         sharpe = 0.0
 
-    total_pnl = df["realized_pnl"].iloc[-1] if "realized_pnl" in df.columns else 0.0
-
     return {
         "total_return_pct": round(total_return_pct, 2),
         "total_return_usd": round(total_return_usd, 2),
         "current_equity": round(current_equity, 2),
         "max_drawdown_pct": round(max_drawdown, 2),
         "sharpe_ratio": round(sharpe, 2),
-        "total_pnl": round(total_pnl, 2),
+        "total_pnl": round(total_return_usd, 2),
     }
 
 

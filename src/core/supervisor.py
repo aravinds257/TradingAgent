@@ -79,11 +79,12 @@ class Supervisor:
 
     def _create_agents(self) -> None:
         """Instantiate strategy agents based on config."""
-        for name, params_model in self.settings.strategies.items():
-            if not params_model.enabled:
-                logger.info("strategy_disabled", name=name)
-                continue
+        enabled_strategies = [
+            (name, model) for name, model in self.settings.strategies.items() if model.enabled
+        ]
+        total_weight = sum(m.capital_pct for _, m in enabled_strategies) or 1.0
 
+        for name, params_model in enabled_strategies:
             agent_cls = STRATEGY_REGISTRY.get(name)
             if agent_cls is None:
                 logger.warning("unknown_strategy", name=name)
@@ -107,9 +108,11 @@ class Supervisor:
             agent.status = AgentStatus.RUNNING
             self.agents[agent_id] = agent
 
-            # Register capital allocation
-            self.portfolio.register_agent(agent_id, params.get("capital_pct", 0.167))
-            logger.info("agent_created", agent_id=agent_id, strategy=name, symbols=symbols)
+            # Register normalized capital allocation (exact fraction of portfolio)
+            normalized_pct = params_model.capital_pct / total_weight
+            self.portfolio.register_agent(agent_id, normalized_pct)
+            logger.info("agent_created", agent_id=agent_id, strategy=name,
+                        symbols=symbols, capital_pct=round(normalized_pct, 4))
 
     async def _warmup_agents(self) -> None:
         """Feed historical bars to agents so indicators are primed."""
