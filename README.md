@@ -22,14 +22,18 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
+# 🚀 Start both Trading Engine + Dashboard in one command:
+./start.sh
+
+# 🔄 Start both AND reset all previous history / trades:
+./start.sh --reset
+
+# (Alternative using Python directly)
+python start.py
+python start.py --reset
+
 # Run tests
 pytest tests/ -v
-
-# Run the trading engine (paper trading mode)
-python -m src.main
-
-# Run the dashboard (separate terminal)
-streamlit run dashboard/app.py
 ```
 
 ## Configuration
