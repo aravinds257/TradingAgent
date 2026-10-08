@@ -66,3 +66,43 @@ def test_snapshot(portfolio):
     snapshot = portfolio.get_snapshot()
     assert snapshot.total_equity == pytest.approx(100000.0)
     assert snapshot.cash == pytest.approx(100000.0)
+
+
+def test_reversal_signal_closes_position(portfolio):
+    # Open LONG position
+    sig_long = Signal(agent_id="trend", symbol="BTC/USDT", direction=SignalDirection.LONG)
+    order_buy = portfolio.signal_to_order(sig_long)
+    fill_buy = Fill(order_id=order_buy.order_id, agent_id="trend", symbol="BTC/USDT",
+                    side=Side.BUY, quantity=order_buy.quantity, price=65000.0)
+    portfolio.process_fill(fill_buy)
+    assert "BTC/USDT" in portfolio.accounts["trend"].positions
+
+    # Reversal signal (SHORT) should generate an order to close the LONG position
+    sig_short = Signal(agent_id="trend", symbol="BTC/USDT", direction=SignalDirection.SHORT)
+    order_close = portfolio.signal_to_order(sig_short)
+    assert order_close is not None
+    assert order_close.side == Side.SELL
+    assert order_close.quantity == order_buy.quantity
+
+
+def test_stop_loss_and_take_profit_triggers(portfolio):
+    # Open position with SL=64000 and TP=67000
+    fill = Fill(order_id="o1", agent_id="trend", symbol="BTC/USDT",
+                side=Side.BUY, quantity=0.1, price=65000.0,
+                stop_loss=64000.0, take_profit=67000.0)
+    portfolio.process_fill(fill)
+
+    # Price at 64500 (between SL and TP) -> no exit order
+    assert len(portfolio.check_stop_loss_take_profit_orders("BTC/USDT", 64500.0)) == 0
+
+    # Price drops to 63900 (below SL) -> triggers exit order
+    sl_orders = portfolio.check_stop_loss_take_profit_orders("BTC/USDT", 63900.0)
+    assert len(sl_orders) == 1
+    assert sl_orders[0].side == Side.SELL
+    assert sl_orders[0].quantity == 0.1
+
+    # Price rises to 67500 (above TP) -> triggers exit order
+    tp_orders = portfolio.check_stop_loss_take_profit_orders("BTC/USDT", 67500.0)
+    assert len(tp_orders) == 1
+    assert tp_orders[0].side == Side.SELL
+

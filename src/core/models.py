@@ -97,6 +97,8 @@ class Fill(BaseModel):
     quantity: float
     price: float
     commission: float = 0.0
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -111,6 +113,8 @@ class Position(BaseModel):
     entry_price: float
     current_price: float = 0.0
     unrealized_pnl: float = 0.0
+    stop_loss: Optional[float] = None
+    take_profit: Optional[float] = None
     opened_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

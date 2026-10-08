@@ -66,6 +66,8 @@ class VirtualAccount:
             quantity=fill.quantity,
             entry_price=fill.price,
             current_price=fill.price,
+            stop_loss=fill.stop_loss,
+            take_profit=fill.take_profit,
         )
         self.cash -= fill.commission
         self.realized_pnl -= fill.commission
@@ -117,6 +119,53 @@ class PortfolioManager:
         for account in self.accounts.values():
             account.update_price(symbol, price)
 
+    def check_stop_loss_take_profit_orders(self, symbol: str, price: float) -> list[Order]:
+        """Check all positions for this symbol and return exit orders for any that hit SL or TP."""
+        exit_orders: list[Order] = []
+        for account in self.accounts.values():
+            if symbol not in account.positions:
+                continue
+            pos = account.positions[symbol]
+
+            sl_hit = False
+            tp_hit = False
+
+            if pos.side == Side.BUY:
+                if pos.stop_loss and price <= pos.stop_loss:
+                    sl_hit = True
+                elif pos.take_profit and price >= pos.take_profit:
+                    tp_hit = True
+            elif pos.side == Side.SELL:
+                if pos.stop_loss and price >= pos.stop_loss:
+                    sl_hit = True
+                elif pos.take_profit and price <= pos.take_profit:
+                    tp_hit = True
+
+            if sl_hit or tp_hit:
+                reason = "stop_loss_hit" if sl_hit else "take_profit_hit"
+                close_side = Side.SELL if pos.side == Side.BUY else Side.BUY
+                logger.info(
+                    "sl_tp_triggered",
+                    agent_id=pos.agent_id,
+                    symbol=symbol,
+                    reason=reason,
+                    entry=pos.entry_price,
+                    current=price,
+                    sl=pos.stop_loss,
+                    tp=pos.take_profit,
+                )
+                exit_orders.append(
+                    Order(
+                        agent_id=pos.agent_id,
+                        symbol=symbol,
+                        side=close_side,
+                        quantity=pos.quantity,
+                        price=price,
+                    )
+                )
+
+        return exit_orders
+
     def signal_to_order(self, signal: Signal) -> Order | None:
         """Convert a strategy signal into a concrete order with position sizing."""
         account = self.accounts.get(signal.agent_id)
@@ -143,6 +192,26 @@ class PortfolioManager:
 
         # Check if already in a position for this symbol
         if symbol in account.positions:
+            existing = account.positions[symbol]
+            # If opposite direction, close existing position (reversal)
+            if (existing.side == Side.BUY and signal.direction == SignalDirection.SHORT) or \
+               (existing.side == Side.SELL and signal.direction == SignalDirection.LONG):
+                close_side = Side.SELL if existing.side == Side.BUY else Side.BUY
+                logger.info(
+                    "reversal_signal_closing_existing_position",
+                    agent_id=signal.agent_id,
+                    symbol=symbol,
+                    existing_side=existing.side.value,
+                    new_direction=signal.direction.value,
+                )
+                return Order(
+                    agent_id=signal.agent_id,
+                    symbol=symbol,
+                    side=close_side,
+                    quantity=existing.quantity,
+                    signal_id=signal.signal_id,
+                )
+
             logger.info("already_in_position", agent_id=signal.agent_id, symbol=symbol)
             return None
 

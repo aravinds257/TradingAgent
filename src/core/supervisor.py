@@ -195,6 +195,22 @@ class Supervisor:
                 bar: Bar = await asyncio.wait_for(bar_queue.get(), timeout=5.0)
                 self.portfolio.update_price(bar.symbol, bar.close)
 
+                # Check and execute Stop Loss or Take Profit exits for open positions
+                sl_tp_orders = self.portfolio.check_stop_loss_take_profit_orders(bar.symbol, bar.close)
+                for exit_order in sl_tp_orders:
+                    fill = await self.execution.submit_order(exit_order)
+                    if fill:
+                        pnl = self.portfolio.process_fill(fill)
+                        self.risk_engine.update_daily_pnl(pnl)
+                        await self.db.record_fill(fill, pnl=pnl)
+                        agent = self.agents.get(fill.agent_id)
+                        if agent:
+                            await agent.on_fill(fill)
+                        logger.info("sl_tp_exit_complete",
+                                    agent=fill.agent_id, symbol=fill.symbol,
+                                    side=fill.side.value, price=fill.price,
+                                    qty=fill.quantity, pnl=pnl)
+
                 for agent in self.agents.values():
                     if agent.status == AgentStatus.RUNNING and bar.symbol in agent.symbols:
                         try:

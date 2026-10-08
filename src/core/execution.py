@@ -71,6 +71,8 @@ class ExecutionEngine:
                 quantity=order.quantity,
                 price=price,
                 commission=fee_cost,
+                stop_loss=order.stop_loss,
+                take_profit=order.take_profit,
             )
             order.status = OrderStatus.FILLED
             logger.info("paper_order_simulated_fill", fill_id=fill.fill_id,
@@ -108,6 +110,8 @@ class ExecutionEngine:
                     quantity=filled_qty,
                     price=fill_price,
                     commission=fee_cost,
+                    stop_loss=order.stop_loss,
+                    take_profit=order.take_profit,
                 )
 
                 order.status = OrderStatus.FILLED
