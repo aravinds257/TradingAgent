@@ -38,6 +38,21 @@ def reset_data():
     print("=" * 60)
 
 
+def ensure_port_free(port: int):
+    """Check if the port is already bound and kill the stale process if needed."""
+    try:
+        res = subprocess.run(["lsof", "-t", f"-i:{port}"], capture_output=True, text=True)
+        pids = res.stdout.strip().split()
+        for p in pids:
+            if p and p != str(os.getpid()):
+                print(f"⚠️  Port {port} in use by PID {p}. Terminating stale process...")
+                subprocess.run(["kill", "-9", p], check=False)
+        if pids:
+            time.sleep(1)
+    except Exception:
+        pass
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Launch Trading Engine and Streamlit Dashboard simultaneously."
@@ -58,6 +73,9 @@ def main():
 
     if args.reset:
         reset_data()
+
+    # Free up port if an old Streamlit process is still running
+    ensure_port_free(args.port)
 
     # Determine Python executable
     venv_python = PROJECT_ROOT / ".venv" / "bin" / "python"
@@ -116,10 +134,20 @@ def main():
         # Small pause so engine connects and warms up
         time.sleep(2)
 
-        # 2. Start Streamlit Dashboard
+        # 2. Start Streamlit Dashboard in headless mode
         print(f"📊 Launching Dashboard on port {args.port}...")
         dashboard_proc = subprocess.Popen(
-            [streamlit_bin, "run", "dashboard/app.py", "--server.port", str(args.port)],
+            [
+                streamlit_bin,
+                "run",
+                "dashboard/app.py",
+                "--server.port",
+                str(args.port),
+                "--server.headless",
+                "true",
+                "--browser.gatherUsageStats",
+                "false",
+            ],
             cwd=str(PROJECT_ROOT),
             env=env,
         )
