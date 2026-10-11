@@ -21,7 +21,7 @@ exchange:
   timeout_ms: 30000
 
 data_feed:
-  timeframe: 1m             # Candle interval (1m for active trading and live updates)
+  timeframe: 15m            # 15m candle interval (filters out 1m noise and reduces fee churn)
   warmup_bars: 200           # How many historical bars to load on startup
 
 strategies:
@@ -31,16 +31,16 @@ strategies:
     fast_period: 9
     slow_period: 21
     atr_period: 14
-    atr_stop_multiplier: 2.0
+    atr_stop_multiplier: 2.5  # Widened from 2.0 to give trends breathing room
 
   rsi_divergence:
     enabled: true
     capital_pct: 0.167
     rsi_period: 14
-    rsi_oversold: 35
-    rsi_overbought: 65
+    rsi_oversold: 30         # Stricter oversold threshold (from 35)
+    rsi_overbought: 70       # Stricter overbought threshold (from 65)
     pivot_lookback: 5
-    reward_risk_ratio: 2.0
+    reward_risk_ratio: 2.5   # Increased target reward to 2.5:1
 
   bollinger_mean_reversion:
     enabled: true
@@ -48,10 +48,10 @@ strategies:
     bb_period: 20
     bb_std: 2.0
     rsi_period: 14
-    rsi_oversold: 30
-    rsi_overbought: 70
+    rsi_oversold: 25         # Extreme oversold filter (from 30)
+    rsi_overbought: 75       # Extreme overbought filter (from 70)
     atr_period: 14
-    atr_stop_multiplier: 1.5
+    atr_stop_multiplier: 2.0 # Widened stop distance from 1.5
 
   momentum_breakout:
     enabled: true
