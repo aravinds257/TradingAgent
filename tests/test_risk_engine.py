@@ -61,3 +61,18 @@ def test_concentration_limit(setup):
     result = risk.check_order(order)
     assert not result.approved
     assert "concentration" in result.reason
+
+
+def test_daily_kill_switch_resets_on_new_day(setup):
+    """Regression: daily kill switch used to latch forever because reset_daily was never called."""
+    from datetime import timedelta
+
+    pm, risk = setup
+    risk.update_daily_pnl(-3500)
+    order = Order(agent_id="agent_1", symbol="BTC/USDT", side=Side.BUY,
+                  quantity=0.1, price=65000.0)
+    assert not risk.check_order(order).approved
+
+    # Simulate the UTC date rolling over
+    risk._current_day = risk._current_day - timedelta(days=1)
+    assert risk.check_order(order).approved

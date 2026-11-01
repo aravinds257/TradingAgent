@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 import structlog
 
 from src.core.config import RiskConfig
@@ -25,19 +27,36 @@ class RiskEngine:
         self.portfolio = portfolio
         self._daily_pnl: float = 0.0
         self._kill_switch: bool = False
+        self._kill_reason: str = ""
+        self._current_day = datetime.now(timezone.utc).date()
 
     def reset_daily(self) -> None:
-        """Call at start of each trading day to reset daily limits."""
+        """Call at start of each trading day to reset daily limits.
+
+        A total-drawdown kill switch is permanent and is NOT cleared here.
+        """
         self._daily_pnl = 0.0
-        self._kill_switch = False
-        logger.info("daily_risk_reset")
+        if self._kill_reason != "total_drawdown":
+            self._kill_switch = False
+            self._kill_reason = ""
+        logger.info("daily_risk_reset", kill_switch=self._kill_switch)
+
+    def _roll_day(self) -> None:
+        """Automatically reset daily limits when the UTC date changes."""
+        today = datetime.now(timezone.utc).date()
+        if today != self._current_day:
+            self._current_day = today
+            self.reset_daily()
 
     def update_daily_pnl(self, pnl: float) -> None:
         """Track cumulative daily P&L."""
+        self._roll_day()
         self._daily_pnl += pnl
 
     def check_order(self, order: Order) -> RiskCheckResult:
         """Run all pre-trade risk checks. Returns approval or rejection with reason."""
+
+        self._roll_day()
 
         # 1. Kill switch
         if self._kill_switch:
@@ -48,6 +67,7 @@ class RiskEngine:
         daily_dd_pct = abs(self._daily_pnl / self.portfolio.initial_capital * 100)
         if self._daily_pnl < 0 and daily_dd_pct >= self.config.max_daily_drawdown_pct:
             self._kill_switch = True
+            self._kill_reason = "daily_drawdown"
             logger.error("daily_drawdown_breached", pct=daily_dd_pct)
             return RiskCheckResult(False, f"daily_drawdown_{daily_dd_pct:.1f}%")
 
@@ -56,6 +76,7 @@ class RiskEngine:
                         self.portfolio.initial_capital * 100
         if total_dd_pct >= self.config.max_total_drawdown_pct:
             self._kill_switch = True
+            self._kill_reason = "total_drawdown"
             logger.error("total_drawdown_breached", pct=total_dd_pct)
             return RiskCheckResult(False, f"total_drawdown_{total_dd_pct:.1f}%")
 

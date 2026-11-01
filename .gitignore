@@ -29,3 +29,4 @@ Thumbs.db
 # IDE configuration
 .vscode/
 .idea/
+data/bars/*.csv

@@ -21,12 +21,25 @@ exchange:
   timeout_ms: 30000
 
 data_feed:
-  timeframe: 15m            # 15m candle interval (filters out 1m noise and reduces fee churn)
-  warmup_bars: 200           # How many historical bars to load on startup
+  timeframe: 4h             # 4h candles: only timeframe where backtests beat fees (see scripts/compare_strategies.py)
+  warmup_bars: 300           # Needs > 200 bars for the SMA200 regime filter
 
 strategies:
-  ma_crossover:
+  # Primary strategy — regime-filtered Supertrend, long-only, 4h.
+  # Legacy strategies below are disabled: all were net negative after fees in live
+  # trading and in the 2-year backtest. Re-enable individually if desired.
+  supertrend_regime:
     enabled: true
+    capital_pct: 1.0
+    st_period: 10
+    st_multiplier: 3.0
+    adx_period: 14
+    adx_min: 22              # Only trade when the market is trending
+    sma_period: 200          # Only go long above the 200-bar SMA
+    allow_short: false       # Shorts were net negative in backtest
+
+  ma_crossover:
+    enabled: false
     capital_pct: 0.167
     fast_period: 9
     slow_period: 21
@@ -34,7 +47,7 @@ strategies:
     atr_stop_multiplier: 2.5  # Widened from 2.0 to give trends breathing room
 
   rsi_divergence:
-    enabled: true
+    enabled: false
     capital_pct: 0.167
     rsi_period: 14
     rsi_oversold: 30         # Stricter oversold threshold (from 35)
@@ -43,7 +56,7 @@ strategies:
     reward_risk_ratio: 2.5   # Increased target reward to 2.5:1
 
   bollinger_mean_reversion:
-    enabled: true
+    enabled: false
     capital_pct: 0.167
     bb_period: 20
     bb_std: 2.0
@@ -54,7 +67,7 @@ strategies:
     atr_stop_multiplier: 2.0 # Widened stop distance from 1.5
 
   momentum_breakout:
-    enabled: true
+    enabled: false
     capital_pct: 0.167
     entry_period: 20
     exit_period: 10
@@ -62,7 +75,7 @@ strategies:
     risk_per_trade_pct: 1.0
 
   macd_squeeze:
-    enabled: true
+    enabled: false
     capital_pct: 0.167
     bb_period: 20
     bb_std: 2.0
@@ -73,7 +86,7 @@ strategies:
     macd_signal: 9
 
   pairs_trading:
-    enabled: true
+    enabled: false
     capital_pct: 0.167
     pair_a: BTC/USDT
     pair_b: ETH/USDT

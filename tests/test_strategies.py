@@ -82,3 +82,52 @@ async def test_strategies_handle_insufficient_data(signal_queue):
             await agent.on_bar(bar)
         # Should not crash — queue should be empty (no signal)
         assert signal_queue.empty(), f"{name} generated a signal with insufficient data"
+
+
+def _feed(agent, bars):
+    async def run():
+        for bar in bars:
+            await agent.on_bar(bar)
+    return run()
+
+
+@pytest.mark.asyncio
+async def test_supertrend_regime_long_then_close():
+    """Uptrend should produce a LONG; a subsequent crash should produce a CLOSE."""
+    from src.core.models import Fill, Side, SignalDirection
+
+    queue = asyncio.Queue()
+    agent = STRATEGY_REGISTRY["supertrend_regime"](
+        agent_id="st", symbols=["BTC/USDT"], signal_queue=queue,
+        params={"sma_period": 50, "adx_min": 20},
+    )
+    await _feed(agent, make_bars(120, base_price=60000, trend=150, noise=60))
+    signals = []
+    while not queue.empty():
+        signals.append(queue.get_nowait())
+    longs = [s for s in signals if s.direction == SignalDirection.LONG]
+    assert longs, "expected a long signal in a strong uptrend"
+    assert longs[0].stop_loss < 60000 + 120 * 150 + 1000
+
+    # Simulate the fill so the agent knows it is long
+    await agent.on_fill(Fill(order_id="o1", agent_id="st", symbol="BTC/USDT",
+                             side=Side.BUY, quantity=0.001, price=longs[0].metadata["sma"]))
+    last_close = agent._bars["BTC/USDT"][-1]["close"]
+    await _feed(agent, make_bars(30, base_price=last_close, trend=-600, noise=60))
+    signals = []
+    while not queue.empty():
+        signals.append(queue.get_nowait())
+    assert any(s.direction == SignalDirection.CLOSE for s in signals)
+    assert not any(s.direction == SignalDirection.LONG for s in signals)
+
+
+@pytest.mark.asyncio
+async def test_supertrend_regime_silent_in_downtrend():
+    """Long-only agent must not open positions below the SMA."""
+    queue = asyncio.Queue()
+    agent = STRATEGY_REGISTRY["supertrend_regime"](
+        agent_id="st", symbols=["BTC/USDT"], signal_queue=queue,
+        params={"sma_period": 50},
+    )
+    await _feed(agent, make_bars(120, base_price=60000, trend=-150, noise=60))
+    assert queue.empty()

@@ -126,3 +126,50 @@ def detect_divergence(prices: pd.Series, indicator: pd.Series,
             result.iloc[i] = -1
 
     return result
+
+
+def _wilder_atr(df: pd.DataFrame, period: int) -> pd.Series:
+    prev_close = df["close"].shift()
+    tr = pd.concat([
+        df["high"] - df["low"],
+        (df["high"] - prev_close).abs(),
+        (df["low"] - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    return tr.ewm(alpha=1 / period, adjust=False).mean()
+
+
+def add_adx(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
+    """Add Average Directional Index column `adx_{period}` (Wilder smoothing)."""
+    up = df["high"].diff()
+    down = -df["low"].diff()
+    plus_dm = pd.Series(np.where((up > down) & (up > 0), up, 0.0), index=df.index)
+    minus_dm = pd.Series(np.where((down > up) & (down > 0), down, 0.0), index=df.index)
+    atr = _wilder_atr(df, period)
+    plus_di = 100 * plus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr
+    minus_di = 100 * minus_dm.ewm(alpha=1 / period, adjust=False).mean() / atr
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    df[f"adx_{period}"] = dx.ewm(alpha=1 / period, adjust=False).mean()
+    return df
+
+
+def add_supertrend(df: pd.DataFrame, period: int = 10, multiplier: float = 3.0) -> pd.DataFrame:
+    """Add Supertrend columns: `st_dir` (+1 bullish / -1 bearish) and `st_line` (active band)."""
+    atr = _wilder_atr(df, period).values
+    hl2 = ((df["high"] + df["low"]) / 2).values
+    close = df["close"].values
+    upper = hl2 + multiplier * atr
+    lower = hl2 - multiplier * atr
+    f_upper, f_lower = upper.copy(), lower.copy()
+    direction = np.ones(len(df))
+    for i in range(1, len(df)):
+        f_upper[i] = upper[i] if (upper[i] < f_upper[i - 1] or close[i - 1] > f_upper[i - 1]) else f_upper[i - 1]
+        f_lower[i] = lower[i] if (lower[i] > f_lower[i - 1] or close[i - 1] < f_lower[i - 1]) else f_lower[i - 1]
+        if close[i] > f_upper[i - 1]:
+            direction[i] = 1
+        elif close[i] < f_lower[i - 1]:
+            direction[i] = -1
+        else:
+            direction[i] = direction[i - 1]
+    df["st_dir"] = direction
+    df["st_line"] = np.where(direction == 1, f_lower, f_upper)
+    return df

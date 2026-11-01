@@ -7,6 +7,7 @@ from src.strategies.macd_squeeze import MACDSqueezeAgent
 from src.strategies.momentum_breakout import MomentumBreakoutAgent
 from src.strategies.pairs_trading import PairsTradingAgent
 from src.strategies.rsi_divergence import RSIDivergenceAgent
+from src.strategies.supertrend_regime import SupertrendRegimeAgent
 
 STRATEGY_REGISTRY: dict[str, type[BaseStrategyAgent]] = {
     "ma_crossover": MACrossoverAgent,
@@ -15,4 +16,5 @@ STRATEGY_REGISTRY: dict[str, type[BaseStrategyAgent]] = {
     "momentum_breakout": MomentumBreakoutAgent,
     "macd_squeeze": MACDSqueezeAgent,
     "pairs_trading": PairsTradingAgent,
+    "supertrend_regime": SupertrendRegimeAgent,
 }
