@@ -51,7 +51,14 @@ class BaseStrategyAgent(ABC):
             "close": bar.close,
             "volume": bar.volume,
         }
-        self._bars[bar.symbol].append(bar_dict)
+        history = self._bars[bar.symbol]
+        if history and bar.timestamp <= history[-1]["timestamp"]:
+            if bar.timestamp == history[-1]["timestamp"]:
+                history[-1] = bar_dict  # same candle re-delivered (final values) -> replace
+            else:
+                return  # stale / out-of-order bar
+        else:
+            history.append(bar_dict)
 
         # Keep only recent bars
         if len(self._bars[bar.symbol]) > self._max_bars:

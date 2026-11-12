@@ -1,7 +1,7 @@
 """Tests for strategy signal generation."""
 
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ def signal_queue():
 
 
 def make_bars(n: int, base_price: float = 60000,
-              trend: float = 0, noise: float = 100) -> list[Bar]:
+              trend: float = 0, noise: float = 100, offset_hours: int = 0) -> list[Bar]:
     """Generate synthetic bars with optional trend."""
     np.random.seed(42)
     bars = []
@@ -26,7 +26,7 @@ def make_bars(n: int, base_price: float = 60000,
         price += trend + np.random.randn() * noise
         bar = Bar(
             symbol="BTC/USDT",
-            timestamp=datetime(2026, 1, 1, i % 24, tzinfo=timezone.utc),
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc) + timedelta(hours=i + offset_hours),
             open=price - noise * 0.3,
             high=price + abs(np.random.randn()) * noise,
             low=price - abs(np.random.randn()) * noise,
@@ -113,7 +113,7 @@ async def test_supertrend_regime_long_then_close():
     await agent.on_fill(Fill(order_id="o1", agent_id="st", symbol="BTC/USDT",
                              side=Side.BUY, quantity=0.001, price=longs[0].metadata["sma"]))
     last_close = agent._bars["BTC/USDT"][-1]["close"]
-    await _feed(agent, make_bars(30, base_price=last_close, trend=-600, noise=60))
+    await _feed(agent, make_bars(30, base_price=last_close, trend=-600, noise=60, offset_hours=1000))
     signals = []
     while not queue.empty():
         signals.append(queue.get_nowait())

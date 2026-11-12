@@ -32,15 +32,21 @@ class Supervisor:
         self.settings = settings or load_settings()
         self.event_bus = EventBus()
         self.db = Database(self.settings.general.db_path)
-        self.execution = ExecutionEngine(self.settings.exchange)
+        if self.settings.exchange.name == "yahoo":
+            from src.data.yahoo import YahooMarketData
+            self.execution = YahooMarketData(self.settings.exchange)
+        else:
+            self.execution = ExecutionEngine(self.settings.exchange)
         self.portfolio = PortfolioManager(
             self.settings.general.initial_capital,
             self.settings.risk.max_risk_per_trade_pct,
+            allow_fractional=self.settings.general.allow_fractional,
         )
         self.risk_engine = RiskEngine(self.settings.risk, self.portfolio)
         self.agents: dict[str, BaseStrategyAgent] = {}
         self._signal_queue: asyncio.Queue[Signal] = asyncio.Queue()
         self._running = False
+        self._last_bar_ts: dict[str, int] = {}  # symbol -> last warmup bar (ms)
 
     async def start(self) -> None:
         """Initialize everything and run the main loop."""
@@ -144,6 +150,7 @@ class Supervisor:
 
             # Now feed the latest closed bar so current setups can trigger
             latest_bar = bars[-1]
+            self._last_bar_ts[symbol] = int(latest_bar.timestamp.timestamp() * 1000)
             self.portfolio.update_price(latest_bar.symbol, latest_bar.close)
             for agent in self.agents.values():
                 if latest_bar.symbol in agent.symbols:
@@ -177,13 +184,21 @@ class Supervisor:
         """Start the live data feed."""
         symbols = list(self.settings.symbols)
         tf = self.settings.data_feed.timeframe
+        poll = self.settings.data_feed.poll_interval_sec
+
+        if self.settings.exchange.name == "yahoo":
+            feed = PollingFeed(self.execution, symbols, tf, self.event_bus,
+                               poll_interval=poll, last_timestamps=self._last_bar_ts)
+            await feed.start()
+            return
 
         try:
             feed = BinanceWebSocketFeed(symbols, tf, self.event_bus)
             await feed.start()
         except Exception as e:
             logger.warning("ws_feed_failed, falling back to polling", error=str(e))
-            feed = PollingFeed(self.execution, symbols, tf, self.event_bus, poll_interval=60)
+            feed = PollingFeed(self.execution, symbols, tf, self.event_bus,
+                               poll_interval=poll, last_timestamps=self._last_bar_ts)
             await feed.start()
 
     async def _process_bars(self) -> None:

@@ -6,17 +6,21 @@ import pandas as pd
 import json
 from pathlib import Path
 import sys
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.config import load_settings
+from dashboard.components.market import select_market
 from dashboard.components.charts import drawdown_gauge
 
 st.set_page_config(page_title="Risk Monitor", page_icon="🛡️", layout="wide")
 st.title("🛡️ Risk Monitor")
 
-settings = load_settings()
+MKT = select_market()
+settings = MKT.settings
 INITIAL_CAPITAL = settings.general.initial_capital
 MAX_DD_LIMIT = settings.risk.max_total_drawdown_pct
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "trading_system.db"
+DB_PATH = MKT.db_path
+CUR = MKT.currency
 
 def load_risk_data():
     if not DB_PATH.exists():
@@ -43,8 +47,8 @@ if equity_history:
     with col1:
         st.plotly_chart(drawdown_gauge(current_dd, MAX_DD_LIMIT), use_container_width=True)
     with col2:
-        st.metric("Current Equity", f"${current_equity:,.2f}")
-        st.metric("Peak Equity", f"${peak.iloc[-1]:,.2f}")
+        st.metric("Current Equity", f"{CUR}{current_equity:,.2f}")
+        st.metric("Peak Equity", f"{CUR}{peak.iloc[-1]:,.2f}")
         st.metric("Current Drawdown", f"{current_dd:.2f}%")
         st.metric("Max Allowed DD", f"{MAX_DD_LIMIT}%")
 

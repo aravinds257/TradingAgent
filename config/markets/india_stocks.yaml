@@ -1,0 +1,66 @@
+# Indian large-cap stocks (NSE) — paper trading via Yahoo Finance data (no broker connection).
+general:
+  market_name: India Stocks
+  mode: paper
+  initial_capital: 1000000.0  # INR 10 lakh
+  base_currency: INR
+  currency_symbol: "₹"
+  allow_fractional: false     # NSE trades whole shares only
+  log_level: INFO
+  data_dir: data
+  db_path: data/india_stocks.db
+
+# Top 20 NSE stocks by market cap (edit freely; Yahoo tickers use the .NS suffix)
+symbols:
+  - RELIANCE.NS
+  - HDFCBANK.NS
+  - TCS.NS
+  - BHARTIARTL.NS
+  - ICICIBANK.NS
+  - INFY.NS
+  - SBIN.NS
+  - HINDUNILVR.NS
+  - BAJFINANCE.NS
+  - ITC.NS
+  - LT.NS
+  - HCLTECH.NS
+  - KOTAKBANK.NS
+  - SUNPHARMA.NS
+  - MARUTI.NS
+  - M&M.NS
+  - AXISBANK.NS
+  - ULTRACEMCO.NS
+  - NTPC.NS
+  - TITAN.NS
+
+exchange:
+  name: yahoo                 # Yahoo Finance market data + local paper broker
+  sandbox: true
+  fee_pct: 0.15               # STT + exchange/SEBI charges + brokerage + slippage per side (%)
+
+data_feed:
+  timeframe: 1d               # Daily bars
+  warmup_bars: 300            # > 200 for the SMA200 regime filter
+  poll_interval_sec: 900      # Check for new completed bars every 15 min
+
+strategies:
+  supertrend_regime:
+    enabled: true
+    capital_pct: 1.0
+    st_period: 10
+    st_multiplier: 3.0
+    adx_period: 14
+    adx_min: 22
+    sma_period: 200
+    allow_short: false        # Cash-market shorting isn't available for delivery in India
+
+risk:
+  max_daily_drawdown_pct: 3.0
+  max_total_drawdown_pct: 15.0
+  max_position_concentration_pct: 25.0
+  max_risk_per_trade_pct: 1.0
+  max_open_positions: 20
+
+dashboard:
+  refresh_interval_sec: 5
+  port: 8501

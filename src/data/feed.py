@@ -106,14 +106,16 @@ class PollingFeed:
     """Fallback data feed that polls ccxt for candles (no WebSocket needed)."""
 
     def __init__(self, execution_engine, symbols: list[str],
-                 timeframe: str, event_bus: EventBus, poll_interval: int = 60):
+                 timeframe: str, event_bus: EventBus, poll_interval: int = 60,
+                 last_timestamps: dict[str, int] | None = None):
         self.execution_engine = execution_engine
         self.symbols = symbols
         self.timeframe = timeframe
         self.event_bus = event_bus
         self.poll_interval = poll_interval
         self._running = False
-        self._last_timestamps: dict[str, int] = {}
+        # Seed with warmup timestamps so already-processed bars aren't re-published
+        self._last_timestamps: dict[str, int] = dict(last_timestamps or {})
 
     async def start(self) -> None:
         self._running = True

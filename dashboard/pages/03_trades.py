@@ -7,12 +7,15 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from dashboard.components.market import select_market
 from dashboard.components.charts import trade_distribution_chart
 
 st.set_page_config(page_title="Trade History", page_icon="📝", layout="wide")
 st.title("📝 Trade History")
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "trading_system.db"
+MKT = select_market()
+DB_PATH = MKT.db_path
+CUR = MKT.currency
 
 def load_trades(agent_filter=None, symbol_filter=None, limit=500):
     if not DB_PATH.exists():
@@ -63,8 +66,8 @@ if trades:
     st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Total Trades", len(df))
-    col2.metric("Total P&L", f"${df['pnl'].sum():,.2f}")
-    col3.metric("Avg P&L", f"${df['pnl'].mean():,.2f}")
+    col2.metric("Total P&L", f"{CUR}{df['pnl'].sum():,.2f}")
+    col3.metric("Avg P&L", f"{CUR}{df['pnl'].mean():,.2f}")
     col4.metric("Win Rate",
                 f"{(df['pnl'] > 0).sum() / len(df) * 100:.1f}%" if len(df) > 0 else "N/A")
 

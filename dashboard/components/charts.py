@@ -11,7 +11,7 @@ def equity_curve_chart(df: pd.DataFrame) -> go.Figure:
     """Line chart of total equity over time."""
     fig = px.line(df, x="timestamp", y="total_equity",
                   title="Portfolio Equity Curve",
-                  labels={"total_equity": "Total Equity (USDT)", "timestamp": "Time"})
+                  labels={"total_equity": "Total Equity", "timestamp": "Time"})
     fig.update_layout(height=400, template="plotly_dark",
                       hovermode="x unified")
     return fig

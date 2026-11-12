@@ -10,17 +10,19 @@ from pydantic import BaseModel
 
 
 class ExchangeConfig(BaseModel):
-    name: str = "binance"
+    name: str = "binance"          # any ccxt exchange id, or "yahoo" for stocks
     sandbox: bool = True
     api_key: str = ""
     api_secret: str = ""
     rate_limit_per_min: int = 1100
     timeout_ms: int = 30000
+    fee_pct: float = 0.075         # paper-broker cost per side, in percent
 
 
 class DataFeedConfig(BaseModel):
     timeframe: str = "1h"
     warmup_bars: int = 200
+    poll_interval_sec: int = 60    # used by the polling feed (always used for yahoo)
 
 
 class RiskConfig(BaseModel):
@@ -32,9 +34,12 @@ class RiskConfig(BaseModel):
 
 
 class GeneralConfig(BaseModel):
+    market_name: str = "Crypto"
     mode: str = "paper"
     initial_capital: float = 100000.0
     base_currency: str = "USDT"
+    currency_symbol: str = "$"
+    allow_fractional: bool = True  # False -> order quantities are rounded down to whole units
     log_level: str = "INFO"
     data_dir: str = "data"
     db_path: str = "data/trading_system.db"

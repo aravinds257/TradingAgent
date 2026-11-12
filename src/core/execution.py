@@ -62,7 +62,7 @@ class ExecutionEngine:
             if price <= 0:
                 logger.warning("simulated_order_failed_no_price", symbol=order.symbol)
                 return None
-            fee_cost = round(price * order.quantity * 0.00075, 4)  # 0.075% standard taker fee
+            fee_cost = round(price * order.quantity * self.config.fee_pct / 100.0, 4)  # default 0.075% taker fee
             fill = Fill(
                 order_id=order.order_id,
                 agent_id=order.agent_id,

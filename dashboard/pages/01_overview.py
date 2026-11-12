@@ -10,15 +10,18 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.core.config import load_settings
+from dashboard.components.market import select_market
 from dashboard.components.charts import equity_curve_chart
 from dashboard.components.metrics import compute_portfolio_kpis, compute_win_rate
 
 st.set_page_config(page_title="Portfolio Overview", page_icon="📈", layout="wide")
 st.title("📈 Portfolio Overview")
 
-settings = load_settings()
+MKT = select_market()
+settings = MKT.settings
 initial_capital = settings.general.initial_capital
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "trading_system.db"
+DB_PATH = MKT.db_path
+CUR = MKT.currency
 
 def load_data():
     if not DB_PATH.exists():
@@ -44,9 +47,9 @@ kpis = compute_portfolio_kpis(equity_history, initial_capital)
 win_rate = compute_win_rate(all_trades)
 
 col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("💰 Total Equity", f"${kpis['current_equity']:,.2f}",
+col1.metric("💰 Total Equity", f"{CUR}{kpis['current_equity']:,.2f}",
             f"{kpis['total_return_pct']:+.2f}%")
-col2.metric("📈 Total P&L", f"${kpis['total_return_usd']:,.2f}")
+col2.metric("📈 Total P&L", f"{CUR}{kpis['total_return_usd']:,.2f}")
 col3.metric("📉 Max Drawdown", f"{kpis['max_drawdown_pct']:.2f}%")
 col4.metric("📊 Sharpe Ratio", f"{kpis['sharpe_ratio']:.2f}")
 col5.metric("🎯 Win Rate", f"{win_rate:.1f}%")
@@ -94,7 +97,7 @@ if st.sidebar.button("🗑️ Reset All History & Trades", type="secondary"):
         )
         conn.commit()
         conn.close()
-        st.sidebar.success(f"History reset to ${initial_capital:,.2f} baseline!")
+        st.sidebar.success(f"History reset to {CUR}{initial_capital:,.2f} baseline!")
         st.rerun()
 
 # Auto-refresh

@@ -7,12 +7,15 @@ from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from dashboard.components.market import select_market
 from dashboard.components.charts import agent_equity_comparison
 
 st.set_page_config(page_title="Agent Performance", page_icon="🤖", layout="wide")
 st.title("🤖 Agent Performance")
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "trading_system.db"
+MKT = select_market()
+DB_PATH = MKT.db_path
+CUR = MKT.currency
 
 def load_agent_data():
     if not DB_PATH.exists():
@@ -46,8 +49,8 @@ if agents:
             icon = status_colors.get(agent["status"], "⚪")
             st.markdown(f"### {icon} {agent['agent_id']}")
             st.caption(f"Strategy: {agent['strategy_name']}")
-            st.metric("Equity", f"${agent['current_equity']:,.2f}",
-                       f"${agent['realized_pnl']:+,.2f}")
+            st.metric("Equity", f"{CUR}{agent['current_equity']:,.2f}",
+                       f"{CUR}{agent['realized_pnl']:+,.2f}")
 
     # Comparison chart
     st.markdown("---")

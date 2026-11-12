@@ -1,0 +1,66 @@
+# US large-cap stocks — paper trading via Yahoo Finance data (no broker connection).
+general:
+  market_name: US Stocks
+  mode: paper
+  initial_capital: 10000.0
+  base_currency: USD
+  currency_symbol: "$"
+  allow_fractional: true      # Most US brokers support fractional shares
+  log_level: INFO
+  data_dir: data
+  db_path: data/us_stocks.db
+
+# Top 20 US stocks by market cap (edit freely; Yahoo tickers)
+symbols:
+  - AAPL
+  - MSFT
+  - NVDA
+  - AMZN
+  - GOOGL
+  - META
+  - AVGO
+  - TSLA
+  - BRK-B
+  - JPM
+  - LLY
+  - V
+  - WMT
+  - ORCL
+  - MA
+  - XOM
+  - NFLX
+  - COST
+  - JNJ
+  - HD
+
+exchange:
+  name: yahoo                 # Yahoo Finance market data + local paper broker
+  sandbox: true
+  fee_pct: 0.05               # Commission + spread/slippage per side (%)
+
+data_feed:
+  timeframe: 1d               # Daily bars
+  warmup_bars: 300            # > 200 for the SMA200 regime filter
+  poll_interval_sec: 900      # Check for new completed bars every 15 min
+
+strategies:
+  supertrend_regime:
+    enabled: true
+    capital_pct: 1.0
+    st_period: 10
+    st_multiplier: 3.0
+    adx_period: 14
+    adx_min: 22
+    sma_period: 200
+    allow_short: false
+
+risk:
+  max_daily_drawdown_pct: 3.0
+  max_total_drawdown_pct: 15.0
+  max_position_concentration_pct: 25.0
+  max_risk_per_trade_pct: 1.0
+  max_open_positions: 20
+
+dashboard:
+  refresh_interval_sec: 5
+  port: 8501

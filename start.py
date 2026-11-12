@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Runner script to launch both the Trading Engine and Streamlit Dashboard.
+"""Runner script to launch the Trading Engines (one per market) and the Streamlit Dashboard.
 
 Usage:
-    python start.py            # Start both without resetting
-    python start.py --reset    # Reset all database history, then start both
-    python start.py -r         # Short flag for --reset
+    python start.py                      # Start all markets (crypto, us, india) + dashboard
+    python start.py --markets crypto,us  # Start only selected markets
+    python start.py --reset              # Reset DB history of the selected markets, then start
+    python start.py -r                   # Short flag for --reset
 """
 
 from __future__ import annotations
@@ -17,23 +18,26 @@ import subprocess
 import sys
 import time
 
-
 PROJECT_ROOT = Path(__file__).parent.resolve()
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from src.core.markets import MARKETS, market_db_path  # noqa: E402
 
 
-def reset_data():
-    """Clear database files to start completely fresh."""
+def reset_data(markets: list[str]):
+    """Clear database files of the selected markets to start completely fresh."""
     print("=" * 60)
     print("🗑️  Resetting database and trade history...")
-    db_file = PROJECT_ROOT / "data" / "trading_system.db"
-    for ext in ["", "-wal", "-shm"]:
-        p = Path(f"{db_file}{ext}")
-        if p.exists():
-            try:
-                p.unlink()
-                print(f"   Removed: {p.name}")
-            except Exception as e:
-                print(f"   Warning: could not remove {p.name}: {e}")
+    for market in markets:
+        db_file = market_db_path(market)
+        for ext in ["", "-wal", "-shm"]:
+            p = Path(f"{db_file}{ext}")
+            if p.exists():
+                try:
+                    p.unlink()
+                    print(f"   [{market}] Removed: {p.name}")
+                except Exception as e:
+                    print(f"   [{market}] Warning: could not remove {p.name}: {e}")
     print("✅ Database reset complete.")
     print("=" * 60)
 
@@ -55,13 +59,18 @@ def ensure_port_free(port: int):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Launch Trading Engine and Streamlit Dashboard simultaneously."
+        description="Launch Trading Engines and Streamlit Dashboard simultaneously."
     )
     parser.add_argument(
         "-r",
         "--reset",
         action="store_true",
         help="Clear all database trades, signals, and equity history before starting.",
+    )
+    parser.add_argument(
+        "--markets",
+        default=",".join(MARKETS),
+        help=f"Comma-separated markets to run (default: {','.join(MARKETS)}).",
     )
     parser.add_argument(
         "--port",
@@ -71,8 +80,13 @@ def main():
     )
     args = parser.parse_args()
 
+    markets = [m.strip() for m in args.markets.split(",") if m.strip()]
+    unknown = [m for m in markets if m not in MARKETS]
+    if unknown:
+        parser.error(f"Unknown market(s): {unknown}. Choose from {list(MARKETS)}")
+
     if args.reset:
-        reset_data()
+        reset_data(markets)
 
     # Free up port if an old Streamlit process is still running
     ensure_port_free(args.port)
@@ -90,23 +104,25 @@ def main():
     print("=" * 60)
     print(f"📂 Workspace : {PROJECT_ROOT}")
     print(f"🐍 Python    : {python_bin}")
+    print(f"🌍 Markets   : {', '.join(markets)}")
     print(f"📊 Dashboard : http://localhost:{args.port}")
     if args.reset:
         print("🔄 Mode      : Fresh Start (Database Reset)")
     else:
         print("💾 Mode      : Preserving Existing History")
     print("=" * 60)
-    print("Press Ctrl+C at any time to stop both processes cleanly.\n")
+    print("Press Ctrl+C at any time to stop all processes cleanly.\n")
 
     env = os.environ.copy()
     env["PYTHONPATH"] = str(PROJECT_ROOT)
 
-    engine_proc = None
+    engines: dict[str, subprocess.Popen] = {}
     dashboard_proc = None
 
     def cleanup(signum=None, frame=None):
         print("\n\n🛑 Stopping all services...")
-        for proc, name in [(dashboard_proc, "Dashboard"), (engine_proc, "Trading Engine")]:
+        procs = [(dashboard_proc, "Dashboard")] + [(p, f"Engine [{m}]") for m, p in engines.items()]
+        for proc, name in procs:
             if proc and proc.poll() is None:
                 print(f"   Shutting down {name} (PID: {proc.pid})...")
                 try:
@@ -123,15 +139,16 @@ def main():
     signal.signal(signal.SIGTERM, cleanup)
 
     try:
-        # 1. Start Trading Engine
-        print("⚙️  Launching Trading Engine (src.main)...")
-        engine_proc = subprocess.Popen(
-            [python_bin, "-m", "src.main"],
-            cwd=str(PROJECT_ROOT),
-            env=env,
-        )
+        # 1. Start one Trading Engine per market
+        for market in markets:
+            print(f"⚙️  Launching Trading Engine [{market}] ({MARKETS[market].name})...")
+            engines[market] = subprocess.Popen(
+                [python_bin, "-m", "src.main", "--config", str(MARKETS[market])],
+                cwd=str(PROJECT_ROOT),
+                env=env,
+            )
 
-        # Small pause so engine connects and warms up
+        # Small pause so engines connect and warm up
         time.sleep(2)
 
         # 2. Start Streamlit Dashboard in headless mode
@@ -152,14 +169,18 @@ def main():
             env=env,
         )
 
-        print("\n✨ Both services are running!")
+        print("\n✨ All services are running!")
         print(f"👉 Open http://localhost:{args.port} to view the dashboard.\n")
 
-        # Monitor processes
+        # Monitor processes: a crashed engine is reported but doesn't stop other markets
         while True:
             time.sleep(1)
-            if engine_proc.poll() is not None:
-                print(f"⚠️  Trading Engine exited unexpectedly with code {engine_proc.returncode}")
+            for market, proc in list(engines.items()):
+                if proc.poll() is not None:
+                    print(f"⚠️  Trading Engine [{market}] exited with code {proc.returncode}")
+                    del engines[market]
+            if not engines:
+                print("⚠️  All trading engines have stopped.")
                 cleanup()
             if dashboard_proc.poll() is not None:
                 print(f"⚠️  Dashboard exited unexpectedly with code {dashboard_proc.returncode}")

@@ -100,10 +100,12 @@ class VirtualAccount:
 class PortfolioManager:
     """Manages all virtual accounts and creates orders from signals."""
 
-    def __init__(self, initial_capital: float, risk_per_trade_pct: float = 1.0):
+    def __init__(self, initial_capital: float, risk_per_trade_pct: float = 1.0,
+                 allow_fractional: bool = True):
         self.initial_capital = initial_capital
         self.total_cash = initial_capital
         self.risk_per_trade_pct = risk_per_trade_pct
+        self.allow_fractional = allow_fractional
         self.accounts: dict[str, VirtualAccount] = {}
         self._latest_prices: dict[str, float] = {}
 
@@ -232,6 +234,14 @@ class PortfolioManager:
         max_notional = account.equity * 0.25
         max_quantity = max_notional / price
         quantity = min(quantity, max_quantity)
+
+        # No leverage: total open notional for this agent may not exceed its equity
+        open_notional = sum(p.quantity * p.current_price for p in account.positions.values())
+        available = max(account.equity - open_notional, 0.0)
+        quantity = min(quantity, available / price)
+
+        if not self.allow_fractional:
+            quantity = float(int(quantity))  # whole shares only
 
         if quantity <= 0:
             logger.warning("insufficient_capital", agent_id=signal.agent_id)
